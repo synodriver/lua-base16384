@@ -1,8 +1,12 @@
 cmake_minimum_required(VERSION 3.20)
 project(lua_base16384 C)
 set(CMAKE_C_STANDARD 11)
-include_directories(F:/conda/envs/py310/Library/include ./base16384)
-link_directories("F:\\conda\\envs\\py310\\Library\\lib" F:\\conda\\envs\\py310\\Library\\bin)
+
+# change this to your lua.h directory
+include_directories(D:\\conda\\envs\\py310\\Library\\include ./base16384)
+# change this to your lua.lib\liblua.a directory
+link_directories("D:\\conda\\envs\\py310\\Library\\lib" D:\\conda\\envs\\py310\\Library\\bin)
+
 
 include(TestBigEndian)
 test_big_endian(isBigEndian)
@@ -12,11 +16,12 @@ endif()
 
 if(CMAKE_CL_64)
     MESSAGE("target is 64bit")
-    set(SOURCES base16384/base1464.c  base16384/file.c)
+    set(SOURCES base16384/base1464.c  base16384/file.c base16384/wrap.c)
     add_compile_definitions("CPUBIT64")
+    add_compile_definitions("IS_64BIT_PROCESSOR")
 else()
     MESSAGE("target is 32bit")
-    set(SOURCES base16384/base1432.c base16384/file.c)
+    set(SOURCES base16384/base1432.c base16384/file.c base16384/wrap.c)
     add_compile_definitions("CPUBIT32")
 endif()
 
