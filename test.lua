@@ -1,5 +1,5 @@
 local bs = require("base16384")
-
+print(_VERSION)
 local encoded = bs.encode("xxxxx")
 print(encoded)
 

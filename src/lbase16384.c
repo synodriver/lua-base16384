@@ -1,9 +1,11 @@
+#include <string.h>
+
 #include "lua.h"
 #include "lauxlib.h"
 
 #include "base16384.h"
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
 #define DLLEXPORT __declspec(dllexport)
 #elif
 #define DLLEXPORT
@@ -171,7 +173,7 @@ ldecode_file(lua_State *L)
 static int
 lencode_fp(lua_State *L)
 {
-    checklen(2);
+    checklen(2)
     FILE *inp = (FILE *) lua_touserdata(L, 1);
     FILE *out = (FILE *) lua_touserdata(L, 2);
     int flag = 0;
@@ -204,7 +206,6 @@ ldecode_fp(lua_State *L)
 static int
 lencode_fd(lua_State *L)
 {
-    checklen(2);
     int inp = (int) luaL_checkinteger(L, 1);
     int out = (int) luaL_checkinteger(L, 2);
     int flag = 0;
@@ -221,7 +222,6 @@ lencode_fd(lua_State *L)
 static int
 ldecode_fd(lua_State *L)
 {
-    checklen(2);
     int inp = (int) luaL_checkinteger(L, 1);
     int out = (int) luaL_checkinteger(L, 2);
     int flag = 0;
@@ -233,6 +233,106 @@ ldecode_fd(lua_State *L)
     char decbuf[BASE16384_DECBUFSZ];
     return raiseerror(L, base16384_decode_fd_detailed(inp, out, encbuf, decbuf, flag));
 }
+
+static ssize_t
+lua_reader_func(const void *client_data, void *buffer, size_t count)
+{
+    lua_State *L = (lua_State *)client_data; // reader writer
+    int oldtop = lua_gettop(L);
+    lua_getfield(L, 1, "read");  // reader writer reader.read
+    lua_pushvalue(L, 1); // reader writer reader.read reader
+    lua_pushinteger(L, (lua_Integer)count); // reader writer reader.read reader count
+    if(lua_pcall(L, 2, 1, 0)!=LUA_OK) // reader writer string
+    {
+        lua_settop(L, oldtop);
+        return 0;
+    }
+    size_t retsize=0;
+    const char* ret = luaL_checklstring(L, -1, &retsize);
+    memcpy(buffer, ret, retsize);
+    lua_settop(L, oldtop); // reader writer
+    return (ssize_t)retsize;
+}
+
+static ssize_t
+lua_writer_func(const void *client_data, const void *buffer, size_t count)
+{
+    lua_State *L = (lua_State *)client_data; // reader writer
+    int oldtop = lua_gettop(L);
+    lua_getfield(L, 2, "write");  // reader writer writer.write
+    lua_pushvalue(L, 2); // reader writer writer.write writer
+    lua_pushlstring(L, (const char*)buffer, count);  // reader writer writer.write writer string
+    if(lua_pcall(L, 2, 1, 0)!=LUA_OK) // reader writer write_count
+    {
+        lua_settop(L, oldtop);
+        return 0;
+    }
+    ssize_t write_count = (ssize_t)luaL_checkinteger(L,-1);
+    lua_settop(L, oldtop); // reader writer
+    return write_count;
+}
+
+// stream:read(size) stream:write(stringobj)
+static int
+lencode_stream(lua_State *L)
+{
+    if(lua_type(L, 1)!=LUA_TTABLE || lua_type(L, 2)!=LUA_TTABLE)
+    {
+        return luaL_error(L, "input and output must be table with reader and writer method");
+    }
+    int flag = 0;
+    if(lua_gettop(L)==3)
+    {
+        flag = (int)luaL_checkinteger(L, 3);
+    }
+
+    char encbuf[BASE16384_ENCBUFSZ];
+    char decbuf[BASE16384_DECBUFSZ];
+    base16384_stream_t inp;
+    base16384_io_function_t readder_func;
+    readder_func.reader = lua_reader_func;
+    inp.f = readder_func;
+    inp.client_data = (void*)L;
+
+    base16384_stream_t out;
+    base16384_io_function_t writer_func;
+    writer_func.writer = lua_writer_func;
+    out.f = writer_func;
+    out.client_data = (void*)L;
+
+    return raiseerror(L, base16384_encode_stream_detailed(&inp, &out, encbuf, decbuf, flag));
+}
+
+static int
+ldecode_stream(lua_State *L)
+{
+    if(lua_type(L, 1)!=LUA_TTABLE || lua_type(L, 2)!=LUA_TTABLE)
+    {
+        return luaL_error(L, "input and output must be table with reader and writer method");
+    }
+    int flag = 0;
+    if(lua_gettop(L)==3)
+    {
+        flag = (int)luaL_checkinteger(L, 3);
+    }
+
+    char encbuf[BASE16384_ENCBUFSZ];
+    char decbuf[BASE16384_DECBUFSZ];
+    base16384_stream_t inp;
+    base16384_io_function_t readder_func;
+    readder_func.reader = lua_reader_func;
+    inp.f = readder_func;
+    inp.client_data = (void*)L;
+
+    base16384_stream_t out;
+    base16384_io_function_t writer_func;
+    writer_func.writer = lua_writer_func;
+    out.f = writer_func;
+    out.client_data = (void*)L;
+
+    return raiseerror(L, base16384_decode_stream_detailed(&inp, &out, encbuf, decbuf, flag));
+}
+
 
 static luaL_Reg lua_funcs[] = {
         {"encode_len",  &lencode_len},
@@ -247,6 +347,8 @@ static luaL_Reg lua_funcs[] = {
         {"decode_fp",   &ldecode_fp},
         {"encode_fd",   &lencode_fd},
         {"decode_fd",   &ldecode_fd},
+        {"encode_stream", &lencode_stream},
+        {"decode_stream", &ldecode_stream},
         {NULL, NULL}
 };
 

@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.20)
 project(lua_base16384 C)
 set(CMAKE_C_STANDARD 11)
-
+set(LUA_INCLUDE E:\\pyproject\\Lua_5.4_WinBuild\\lua-5.4.7\\src) # D:\\conda\\envs\\py310\\Library\\include
+set(LUA_LIB E:\\pyproject\\Lua_5.4_WinBuild\\cmake-build-release-visual-studio)
 # change this to your lua.h directory
-include_directories(D:\\conda\\envs\\py310\\Library\\include ./base16384)
+include_directories(${LUA_INCLUDE} ./base16384)
 # change this to your lua.lib\liblua.a directory
-link_directories("D:\\conda\\envs\\py310\\Library\\lib" D:\\conda\\envs\\py310\\Library\\bin)
+link_directories(${LUA_LIB})# "D:\\conda\\envs\\py310\\Library\\lib" D:\\conda\\envs\\py310\\Library\\bin)
 
 
 include(TestBigEndian)
